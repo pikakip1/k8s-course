@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homework-deployment
+  namespace: homework
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: homework-pod
+  template:
+    metadata:
+      labels:
+        app: homework-pod
+    spec:
+      initContainers:
+      - name: init-container
+        image: busybox:latest
+        command: ['sh', '-c', 'echo "<h1>Init container</h1>" > /init/index.html']
+        volumeMounts:
+        - name: shared-volume
+          mountPath: /init
+      containers:
+      - name: python-web
+        image: python:3-alpine
+        command: ['sh', '-c', 'python -m http.server 8000']
+        workingDir: /homework
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - name: shared-volume
+          mountPath: /homework
+        readinessProbe:
+          exec:
+            command:
+            - test
+            - -f
+            - /homework/index.html
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 3
+        lifecycle:
+          preStop:
+            exec:
+              command: ['rm', '/homework/index.html']
+      volumes:
+      - name: shared-volume
+        emptyDir: {}
